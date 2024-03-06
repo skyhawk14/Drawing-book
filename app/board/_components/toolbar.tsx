@@ -11,8 +11,7 @@ import {
   Type,
   Undo2
 } from "lucide-react";
-import { CanvasMode, CanvasState, LayerTypes } from "./canvas";
-
+import { CanvasMode, LayerTypes, CanvasState } from "@/types/canvas";
 
 export interface ToolbarProps {
   canvasState: CanvasState;
@@ -45,11 +44,11 @@ export default function Toolbar({
       <ToolbarButton
         onClick={()=>setCanvasState({
           mode: CanvasMode.Inserting,
-          layerType: LayerTypes.Circle
+          layerType: LayerTypes.Ellipse
         })}
         selected={
           canvasState.mode === CanvasMode.Inserting
-          && canvasState.layerType === LayerTypes.Circle
+          && canvasState.layerType === LayerTypes.Ellipse
         }
         icon={Circle}
       />

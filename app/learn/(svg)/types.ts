@@ -25,3 +25,5 @@ export interface layerShapeItem {
 }
 
 export const DRAWING_BOOK_DATA = 'drawing-book-data'
+
+export type Layer = RectangleLayer | EllipseLayer | PathLayer | TextLayer | NoteLayer

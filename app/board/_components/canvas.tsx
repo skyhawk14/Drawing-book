@@ -1,38 +1,24 @@
 "use client"
 import { useState, useCallback } from "react";
 import Toolbar from "./toolbar";
-import { pointerEventToCanvasPoint } from "@/lib/utils";
-import { useMutation, useMyPresence, useOthers } from "@/liveblocks.config";
-
-export enum CanvasMode {
-  None,
-  Inserting,
-  Resizing,
-  Translating
-}
-
-export interface CanvasState {
-  mode: CanvasMode.None | CanvasMode.Inserting;
-  layerType?: LayerTypes.Rectangle | LayerTypes.Circle
-}
-
-export enum LayerTypes {
-  Rectangle,
-  Circle
-}
-
-export interface Camera {
-  x: number;
-  y: number;
-}
+import { pointerEventToCanvasPoint, resizeBounds } from "@/lib/utils";
+import { useHistory, useMutation, useOthers, useStorage } from "@/liveblocks.config";
+import { LayerTypes, CanvasMode, Point, Layer, EllipseLayer, Color, Side, XYWH } from "@/types/canvas";
+import { Camera, CanvasState } from "@/types/canvas";
+import { LiveObject } from "@liveblocks/client";
+import { LayerPreview } from "./layer-preview";
+import SelectionBox from "./selection-box";
 
 export default function Canvas() {
+  const layerIds = useStorage((root) => root.layerIds);
+
   // keep track of the others users' presence
   const others = useOthers();
 
   const [canvasState, setCanvasState] = useState<CanvasState>({
     mode: CanvasMode.None
   })
+
   const [camera, setCamera] = useState<Camera>({
     x: 0,
     y: 0
@@ -45,6 +31,63 @@ export default function Canvas() {
     }));
   }, []);
 
+  console.log(canvasState.mode === CanvasMode.Resizing)
+  const resizeSelectedLayer = useMutation((
+    { storage, self },
+    point: Point,
+  ) => {
+    console.log('resizeSelectedLayer')
+    if (canvasState.mode !== CanvasMode.Resizing) {
+      return;
+    }
+    
+    const bounds = resizeBounds(
+      canvasState.initialBounds,
+      canvasState.corner,
+      point,
+    );
+
+    const liveLayers = storage.get("layers");
+    const layer = liveLayers.get(self.presence.selection[0]);
+
+    if (layer) {
+      layer.update(bounds);
+    };
+  }, [canvasState]);
+
+
+  const translateSelectedLayers = useMutation((
+    { storage, self },
+    point: Point,
+  ) => {
+    if (canvasState.mode !== CanvasMode.Translating) {
+      return;
+    }
+
+    const offset = {
+      x: point.x - canvasState.current.x,
+      y: point.y - canvasState.current.y,
+    };
+
+    const liveLayers = storage.get("layers");
+
+    for (const id of self.presence.selection) {
+      const layer = liveLayers.get(id);
+
+      if (layer) {
+        layer.update({
+          x: layer.get("x") + offset.x,
+          y: layer.get("y") + offset.y,
+        });
+      }
+    }
+
+    setCanvasState({ mode: CanvasMode.Translating, current: point });
+  }, 
+  [
+    canvasState,
+  ]);
+
   const onPointerMoveHandler = useMutation((
     {setMyPresence},
     e: React.PointerEvent
@@ -52,13 +95,105 @@ export default function Canvas() {
     e.preventDefault();
 
     const canvasPoint = pointerEventToCanvasPoint(e, camera)
-    console.log(canvasPoint)
+    // console.log(canvasPoint)
+
+    if(canvasState.mode === CanvasMode.Resizing){
+      resizeSelectedLayer(canvasPoint)
+    } else if(canvasState.mode === CanvasMode.Translating){
+      translateSelectedLayers(canvasPoint)
+    }
+
     setMyPresence({
       cursor: canvasPoint
     })
-  }, [camera, canvasState])
+  }, [camera, canvasState, resizeSelectedLayer])
 
+  const [lastUsedColor, setLastUsedColor] = useState<Color>({
+    r: 0,
+    g: 0, 
+    b: 0
+  })
+
+  const history = useHistory();
+  
   const onPointerDownHandler = ()=>{}
+
+  const insertLayer = useMutation(({
+    setMyPresence, storage
+  }, layerType: LayerTypes.Rectangle | LayerTypes.Ellipse, position: Point)=>{
+    const liveLayers = storage.get("layers");
+    if (liveLayers.size >= 50) {
+      return;
+    }
+
+    const liveLayerIds = storage.get("layerIds");
+    const layerId = Date.now().toString();
+    const layer = new LiveObject({
+      type: layerType,
+      x: position.x,
+      y: position.y,
+      height: 100,
+      width: 100,
+      fill: lastUsedColor
+    });
+    liveLayerIds.push(layerId);
+    
+    liveLayers.set(layerId, layer);
+    setMyPresence({ selection: [layerId] }, { addToHistory: true });
+    setCanvasState({ mode: CanvasMode.None });
+  }, [lastUsedColor])
+
+  const onPointerUpHandler = useMutation(({}, e)=>{
+    const point = pointerEventToCanvasPoint(e, camera)
+    console.log('inserting',CanvasMode.Inserting)
+    if(canvasState.mode === 1 && canvasState.layerType !== undefined){
+      insertLayer(canvasState.layerType, point);
+    }
+    setCanvasState({
+      mode: CanvasMode.None,
+    });
+  }, [canvasState])
+
+  const onLayerPointDownHandler = useMutation((
+    { self, setMyPresence },
+    e: React.PointerEvent,
+    layerId: string
+  )=>{
+    console.log('onLayerPointDownHandler', e, layerId)
+    e.stopPropagation()
+    if (
+      canvasState.mode === CanvasMode.Inserting
+    ) {
+      return;
+    }
+
+    history.pause();
+    e.stopPropagation();
+
+    const point = pointerEventToCanvasPoint(e, camera);
+
+    if (!self.presence.selection.includes(layerId)) {
+      setMyPresence({ selection: [layerId] }, { addToHistory: true });
+    }
+    setCanvasState({ mode: CanvasMode.Translating, current: point });
+  }, [canvasState.mode])
+
+  const onPointerLeaveHandler = useMutation(({ setMyPresence }) => {
+    setMyPresence({ cursor: null });
+  }, []);
+
+  const onResizeHandlePointerDown = useCallback((
+    corner: Side,
+    initialBounds: XYWH,
+  ) => {
+    history.pause();
+    console.log('onResizeHandlePointerDown')
+    setCanvasState({
+      mode: CanvasMode.Resizing,
+      initialBounds,
+      corner,
+    });
+  }, [history]);
 
   return <main className="h-full w-full bg-red-100 relative">
     <Toolbar
@@ -70,11 +205,25 @@ export default function Canvas() {
       onWheel={onwheelHandler}
       onPointerDown={onPointerDownHandler}
       onPointerMove={onPointerMoveHandler}
+      onPointerUp={onPointerUpHandler}
+      onPointerLeave={onPointerLeaveHandler}
     >
       <g style={{
         transform: `translate(${camera.x}px,${camera.y}px)`
       }}>
-        <rect width="200" height="100" x="300" y="10" rx="20" ry="20" fill="blue" />
+        {
+          layerIds.map((id)=>(
+            <LayerPreview
+              key={id}
+              id={id}
+              onLayerPointerDown={onLayerPointDownHandler}
+              selectionColor="#000"
+            />
+          ))
+        }
+        <SelectionBox
+          onResizeHandlePointerDown={onResizeHandlePointerDown}
+        />
       </g>
     </svg>
   </main>;
