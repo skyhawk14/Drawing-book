@@ -87,3 +87,7 @@ export function findIntersectingLayersWithRectangle(
 
   return ids;
 };
+
+export function colorToCss(color: Color) {
+  return `rgb(${color.r}, ${color.g}, ${color.b})`;
+}

@@ -1,23 +1,35 @@
-"use client"
-import { LucideIcon } from "lucide-react"
+"use client";
 
-interface ToolbarButtonProps {
+import { LucideIcon } from "lucide-react";
+
+import { Hint } from "@/components/hint";
+import { Button } from "@/components/ui/button";
+
+interface ToolButtonProps {
+  label: string;
   icon: LucideIcon;
-  selected: boolean;
-  onClick: ()=>void;
-}
-const ToolbarButton = ({
-  icon: Icon,
-  selected,
-  onClick
-}: ToolbarButtonProps) => {
-  return (
-    <div
-      onClick={onClick}
-      className={`shadow-sm text-white cursor-pointer hover:bg-cyan-400 p-2 m-2 hover:rounded-lg ${selected ? 'bg-cyan-600 rounded-lg' : ''}`}>
-      <Icon/>
-    </div>
-  )
-}
+  onClick: () => void;
+  isActive?: boolean;
+  isDisabled?: boolean;
+};
 
-export default ToolbarButton
+export const ToolButton = ({
+  label,
+  icon: Icon,
+  onClick,
+  isActive,
+  isDisabled,
+}: ToolButtonProps) => {
+  return (
+    <Hint label={label} side="right" sideOffset={14}>
+      <Button
+        disabled={isDisabled}
+        onClick={onClick}
+        size="icon"
+        variant={isActive ? "boardActive" : "board"}
+      >
+        <Icon />
+      </Button>
+    </Hint>
+  );
+};

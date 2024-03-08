@@ -9,7 +9,8 @@ export enum CanvasMode {
   Resizing,
   Translating,
   Pressing,
-  SelectionNet
+  SelectionNet,
+  Pencil
 }
 
 export type CanvasState = 
@@ -18,7 +19,7 @@ export type CanvasState =
     } 
   | {
       mode: CanvasMode.Inserting;
-      layerType: LayerTypes.Rectangle | LayerTypes.Ellipse;
+      layerType: LayerTypes.Rectangle | LayerTypes.Ellipse | LayerTypes.Text | LayerTypes.Note
     }
   | {
       mode: CanvasMode.Translating;
@@ -39,10 +40,14 @@ export type CanvasState =
       origin: Point;
       current: Point;
     }
-
+  | {
+    mode: CanvasMode.Pencil
+  }
 export enum LayerTypes {
   Rectangle,
-  Ellipse
+  Ellipse,
+  Text,
+  Note
 }
 
 export interface Camera {
@@ -76,6 +81,26 @@ export type EllipseLayer = {
   value?: string;
 }
 
+export type TextLayer = {
+  type: LayerTypes.Text;
+  x: number;
+  y: number;
+  height: number;
+  width: number;
+  value?: string;
+  fill: Color;
+}
+
+export type NoteLayer = {
+  type: LayerTypes.Note;
+  x: number;
+  y: number;
+  height: number;
+  width: number;
+  value?: string;
+  fill: Color;
+}
+
 /**
  * Represents a layer in a canvas.
  */
@@ -89,4 +114,4 @@ export enum Side {
 
 export type XYWH = {  x: number; y: number; width: number; height: number; }
 
-export type Layer = RectangleLayer | EllipseLayer
+export type Layer = RectangleLayer | EllipseLayer | TextLayer | NoteLayer

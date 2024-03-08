@@ -1,13 +1,14 @@
 "use client"
 import { useState, useCallback } from "react";
-import Toolbar from "./toolbar";
+import {Toolbar} from "./toolbar";
 import { findIntersectingLayersWithRectangle, pointerEventToCanvasPoint, resizeBounds } from "@/lib/utils";
-import { useHistory, useMutation, useOthers, useStorage } from "@/liveblocks.config";
+import { useCanRedo, useCanUndo, useHistory, useMutation, useOthers, useStorage } from "@/liveblocks.config";
 import { LayerTypes, CanvasMode, Point, Layer, EllipseLayer, Color, Side, XYWH } from "@/types/canvas";
 import { Camera, CanvasState } from "@/types/canvas";
 import { LiveObject } from "@liveblocks/client";
 import { LayerPreview } from "./layer-preview";
 import SelectionBox from "./selection-box";
+import SelectionTools from "./selection-tools";
 
 export default function Canvas() {
   const layerIds = useStorage((root) => root.layerIds);
@@ -25,6 +26,7 @@ export default function Canvas() {
   })
 
   const onwheelHandler = useCallback((e: React.WheelEvent) => {
+    // debugger
     setCamera((camera) => ({
       x: camera.x - e.deltaX,
       y: camera.y - e.deltaY,
@@ -92,6 +94,7 @@ export default function Canvas() {
     storage, setMyPresence
   }, current: Point, origin: Point)=>{
     const layers = storage.get("layers").toImmutable();
+    const layerIds = storage.get("layerIds").toImmutable();
     setCanvasState({
       mode: CanvasMode.SelectionNet,
       origin,
@@ -104,6 +107,7 @@ export default function Canvas() {
       origin,
       current,
     );
+    console.log('ids', ids)
 
     setMyPresence({ selection: ids });
   }, [])
@@ -136,10 +140,10 @@ export default function Canvas() {
       startMultiSelection(canvasPoint, canvasState.origin);
     } else if (canvasState.mode === CanvasMode.SelectionNet) {
       updateSelectionNet(canvasPoint, canvasState.origin);
-    } else if(canvasState.mode === CanvasMode.Resizing){
-      resizeSelectedLayer(canvasPoint)
     } else if(canvasState.mode === CanvasMode.Translating){
       translateSelectedLayers(canvasPoint)
+    } else if(canvasState.mode === CanvasMode.Resizing){
+      resizeSelectedLayer(canvasPoint)
     }
 
     setMyPresence({
@@ -154,9 +158,10 @@ export default function Canvas() {
   })
 
   const history = useHistory();
+  const canUndo = useCanUndo();
+  const canRedo = useCanRedo();
   
   const onPointerDownHandler = (e: React.PointerEvent)=>{
-    debugger
     const point = pointerEventToCanvasPoint(e, camera)
 
     if(canvasState.mode === CanvasMode.Inserting){
@@ -179,7 +184,7 @@ export default function Canvas() {
 
   const insertLayer = useMutation(({
     setMyPresence, storage
-  }, layerType: LayerTypes.Rectangle | LayerTypes.Ellipse, position: Point)=>{
+  }, layerType: LayerTypes.Rectangle | LayerTypes.Ellipse | LayerTypes.Note | LayerTypes.Text, position: Point)=>{
     const liveLayers = storage.get("layers");
     if (liveLayers.size >= 50) {
       return;
@@ -266,6 +271,13 @@ export default function Canvas() {
     <Toolbar
       canvasState={canvasState}
       setCanvasState={setCanvasState}
+      canRedo={canRedo}
+      canUndo={canUndo}
+      undo={history.undo}
+      redo={history.redo}
+    />
+    <SelectionTools
+      camera={camera}
     />
     <svg
       className="h-[100vh] w-[100vw]"
