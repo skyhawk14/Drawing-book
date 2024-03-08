@@ -1,7 +1,7 @@
 "use client"
 import { useState, useCallback } from "react";
 import Toolbar from "./toolbar";
-import { pointerEventToCanvasPoint, resizeBounds } from "@/lib/utils";
+import { findIntersectingLayersWithRectangle, pointerEventToCanvasPoint, resizeBounds } from "@/lib/utils";
 import { useHistory, useMutation, useOthers, useStorage } from "@/liveblocks.config";
 import { LayerTypes, CanvasMode, Point, Layer, EllipseLayer, Color, Side, XYWH } from "@/types/canvas";
 import { Camera, CanvasState } from "@/types/canvas";
@@ -88,6 +88,41 @@ export default function Canvas() {
     canvasState,
   ]);
 
+  const updateSelectionNet = useMutation(({
+    storage, setMyPresence
+  }, current: Point, origin: Point)=>{
+    const layers = storage.get("layers").toImmutable();
+    setCanvasState({
+      mode: CanvasMode.SelectionNet,
+      origin,
+      current,
+    });
+
+    const ids = findIntersectingLayersWithRectangle(
+      layerIds,
+      layers,
+      origin,
+      current,
+    );
+
+    setMyPresence({ selection: ids });
+  }, [])
+
+  const startMultiSelection = useCallback((
+    current: Point,
+    origin: Point,
+  ) => {
+    if (
+      Math.abs(current.x - origin.x) + Math.abs(current.y - origin.y) > 5
+    ) {
+      setCanvasState({
+        mode: CanvasMode.SelectionNet,
+        origin,
+        current,
+      });
+    }
+  }, []);
+
   const onPointerMoveHandler = useMutation((
     {setMyPresence},
     e: React.PointerEvent
@@ -97,7 +132,11 @@ export default function Canvas() {
     const canvasPoint = pointerEventToCanvasPoint(e, camera)
     // console.log(canvasPoint)
 
-    if(canvasState.mode === CanvasMode.Resizing){
+    if(canvasState.mode === CanvasMode.Pressing){
+      startMultiSelection(canvasPoint, canvasState.origin);
+    } else if (canvasState.mode === CanvasMode.SelectionNet) {
+      updateSelectionNet(canvasPoint, canvasState.origin);
+    } else if(canvasState.mode === CanvasMode.Resizing){
       resizeSelectedLayer(canvasPoint)
     } else if(canvasState.mode === CanvasMode.Translating){
       translateSelectedLayers(canvasPoint)
@@ -116,7 +155,27 @@ export default function Canvas() {
 
   const history = useHistory();
   
-  const onPointerDownHandler = ()=>{}
+  const onPointerDownHandler = (e: React.PointerEvent)=>{
+    debugger
+    const point = pointerEventToCanvasPoint(e, camera)
+
+    if(canvasState.mode === CanvasMode.Inserting){
+      return;
+    }
+
+    setCanvasState({
+      mode: CanvasMode.Pressing,
+      current: point,
+      origin: point
+    })
+  }
+  const unselectLayers = useMutation((
+    { self, setMyPresence }
+  ) => {
+    if (self.presence.selection.length > 0) {
+      setMyPresence({ selection: [] }, { addToHistory: true });
+    }
+  }, []);
 
   const insertLayer = useMutation(({
     setMyPresence, storage
@@ -124,7 +183,7 @@ export default function Canvas() {
     const liveLayers = storage.get("layers");
     if (liveLayers.size >= 50) {
       return;
-    }
+    } 
 
     const liveLayerIds = storage.get("layerIds");
     const layerId = Date.now().toString();
@@ -146,13 +205,21 @@ export default function Canvas() {
   const onPointerUpHandler = useMutation(({}, e)=>{
     const point = pointerEventToCanvasPoint(e, camera)
     console.log('inserting',CanvasMode.Inserting)
-    if(canvasState.mode === 1 && canvasState.layerType !== undefined){
+    if (
+      canvasState.mode === CanvasMode.None ||
+      canvasState.mode === CanvasMode.Pressing
+    ) {
+      unselectLayers();
+      setCanvasState({
+        mode: CanvasMode.None,
+      });
+    } else if(canvasState.mode === CanvasMode.Inserting && canvasState.layerType !== undefined){
       insertLayer(canvasState.layerType, point);
     }
     setCanvasState({
       mode: CanvasMode.None,
     });
-  }, [canvasState])
+  }, [canvasState, unselectLayers])
 
   const onLayerPointDownHandler = useMutation((
     { self, setMyPresence },

@@ -7,7 +7,9 @@ export enum CanvasMode {
   None,
   Inserting,
   Resizing,
-  Translating
+  Translating,
+  Pressing,
+  SelectionNet
 }
 
 export type CanvasState = 
@@ -27,7 +29,16 @@ export type CanvasState =
       corner: Side;
       initialBounds: XYWH;
     }
-
+  | {
+      mode: CanvasMode.Pressing;
+      current: Point;
+      origin: Point;
+    }
+  | {
+      mode: CanvasMode.SelectionNet;
+      origin: Point;
+      current: Point;
+    }
 
 export enum LayerTypes {
   Rectangle,
