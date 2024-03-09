@@ -7,6 +7,8 @@ import { useStorage } from "@/liveblocks.config";
 
 import { Ellipse } from "./ellipse";
 import { Rectangle } from "./rectangle";
+import { Note } from "./note";
+import { Text } from "./text";
 
 interface LayerPreviewProps {
   id: string;
@@ -44,6 +46,24 @@ export const LayerPreview = memo(({
           selectionColor={selectionColor}
         />
       );
+      case LayerTypes.Note:
+        return (
+          <Note
+            id={id}
+            layer={layer}
+            onPointerDown={onLayerPointerDown}
+            selectionColor={selectionColor}
+          />
+        );
+      case LayerTypes.Text:
+          return (
+            <Text
+              id={id}
+              layer={layer}
+              onPointerDown={onLayerPointerDown}
+              selectionColor={selectionColor}
+            />
+          );
     default:
       console.warn("Unknown layer type");
       return null;

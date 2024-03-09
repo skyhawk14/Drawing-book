@@ -1,4 +1,4 @@
-import { Camera, Layer, Point, Side, XYWH } from "@/types/canvas";
+import { Camera, Color, Layer, Point, Side, XYWH } from "@/types/canvas";
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
 
@@ -91,3 +91,9 @@ export function findIntersectingLayersWithRectangle(
 export function colorToCss(color: Color) {
   return `rgb(${color.r}, ${color.g}, ${color.b})`;
 }
+
+export function getContrastingTextColor(color: Color) {
+  const luminance = 0.299 * color.r + 0.587 * color.g + 0.114 * color.b;
+
+  return luminance > 182 ? "black" : "white";
+};
